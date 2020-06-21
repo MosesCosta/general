@@ -1,0 +1,283 @@
+-- MOISES PATROCINIO DA COSTA – 21/06/2020 --
+
+1)
+
+-- CREATING TABLE --
+
+-- *EMPLOYEES table exists in HR schema --
+
+alter table EMPLOYEES
+ add (initial_salary number(15,2));
+
+create table employees_salary  
+ (EMPLOYEE_ID NUMBER(6,0), 
+  SALARY NUMBER(15,2));
+  
+alter table employees_salary  
+add CONSTRAINT EMP_SAL_PK PRIMARY KEY (EMPLOYEE_ID);
+	
+alter table employees_salary  
+add CONSTRAINT EMP_SAL_FK FOREIGN KEY (EMPLOYEE_ID)
+	 REFERENCES HR.EMPLOYEES (EMPLOYEE_ID);
+--     
+     
+-- INSERTING RECORDS --   
+insert into employees_salary 
+values(104,100);
+insert into employees_salary 
+values(113,200);
+insert into employees_salary 
+values(119,1000);
+insert into employees_salary 
+values(124,2000);
+insert into employees_salary 
+values(128,10000);
+insert into employees_salary 
+values(135,20000);
+
+commit;
+--
+
+-- FETCHING RECORDS --
+select * from employees a
+where floor(months_between(sysdate,a.start_date)/12) > 0
+--> 90 rows
+--
+select * from employees_salary;
+--> 6 rows
+--
+
+--------------------------------------------------------------
+-- INCREASING SALARY --
+--------------------------------------------------------------
+merge into employees_salary a
+using (select employee_id, initial_salary
+       from employees
+       where floor(months_between(sysdate,start_date)/12) > 0) b
+       on (a.employee_id = b.employee_id)
+when matched then 
+     update set a.salary = nvl(a.salary,0) + nvl(a.salary,0) * 0.2
+when not matched then 
+     insert (a.employee_id, a.salary)
+     values (b.employee_id, b.initial_salary);
+--------------------------------------------------------------
+
+-- FETCHING RECORDS --
+select * from employees_salary;
+--> 90 rows
+--
+--------------------------------------------------------------
+
+
+2) 
+
+-- CREATING TABLE --
+CREATE TABLE MERCHANT_LIST 
+ (MERCHANT_NUMBER VARCHAR2(8),
+  PARENT_MERCHANT_NUMBER VARCHAR(8)); 
+
+-- INSERTING RECORDS --  
+insert into merchant_list
+values('10000000',null);
+insert into merchant_list
+values('10000001','10000000');
+insert into merchant_list
+values('10000002','10000000');
+insert into merchant_list
+values('10000003','10000001');
+insert into merchant_list
+values('10000004','10000003');
+insert into merchant_list
+values('10105555','50000011');
+insert into merchant_list
+values('11100000','13568000');
+insert into merchant_list
+values('13568000','10000002');
+insert into merchant_list
+values('21000000','10000003');
+insert into merchant_list
+values('50000011','10000004');
+insert into merchant_list
+values('80000051','10000001');
+insert into merchant_list
+values('88500000','10000003');
+insert into merchant_list
+values('95422201','10000002');
+
+commit;
+--
+
+--------------------------------------------------------------
+-- FETCHING RECORDS -- 
+--------------------------------------------------------------
+select a.parent_merchant_number, a.merchant_number, level, sys_connect_by_path(a.merchant_number,'/')
+from merchant_list a
+start with a.parent_merchant_number is null
+connect by a.parent_merchant_number = prior a.merchant_number
+order by level;
+--------------------------------------------------------------
+
+3)
+
+--------------------------------------------------------------
+-- CREATING FUNCTION --
+--------------------------------------------------------------
+create or replace function fnc_check_number 
+ (p_parameter in varchar2) return boolean
+is
+ v_number number;
+begin
+ v_number := to_number(p_parameter);
+ return true;
+exception
+ when value_error then
+      return false;
+end fnc_check_number;
+--------------------------------------------------------------
+
+-- VALIDATING FUNCTION --
+set serveroutput on;
+
+declare w_val varchar2(10) := '100';
+begin
+ if fnc_check_number(w_val) then
+    dbms_output.put_line('IS TRUE');
+ else
+    dbms_output.put_line('IS FALSE');
+ end if;
+end;
+
+--> IS TRUE
+
+declare w_val varchar2(10) := '10x';
+begin
+ if fnc_check_number(w_val) then
+    dbms_output.put_line('is TRUE');
+ else
+    dbms_output.put_line('is FALSE');
+ end if;
+end;
+
+--> IS FALSE
+--------------------------------------------------------------
+
+
+4) 
+
+-- CREATING TABLE --
+create TABLE MOTOR_LICENCE_RECORDS 
+  (ISSUE_DATE DATE,    
+   LICENCE_NUMBER VARCHAR2(20),   
+   EXPIRY_DATE DATE,   
+   DRIVER_NAME VARCHAR2(100),   
+   ADDRESS VARCHAR(200),   
+   DATE_OF_BIRTH DATE);   
+   
+alter table MOTOR_LICENCE_RECORDS
+ADD CONSTRAINT MOT_LIC_PK PRIMARY KEY (ISSUE_DATE, LICENCE_NUMBER);
+--
+
+-- INSERTING RECORDS --   
+insert into MOTOR_LICENCE_RECORDS
+values(trunc(sysdate)-365,1,trunc(sysdate)+3,'John Travolta','STREET 1',TO_DATE('01011945','DDMMYYYY'));
+insert into MOTOR_LICENCE_RECORDS
+values(trunc(sysdate)-365,2,trunc(sysdate)+50,'Brad Pitt','STREET 2',TO_DATE('01011948','DDMMYYYY'));
+insert into MOTOR_LICENCE_RECORDS
+values(trunc(sysdate)-365,3,trunc(sysdate)+100,'Angelina Jolie','STREET 3',TO_DATE('01011980','DDMMYYYY'));
+insert into MOTOR_LICENCE_RECORDS
+values(trunc(sysdate)-365,4,trunc(sysdate)+30,'Keira Knightley','STREET 4',TO_DATE('01011990','DDMMYYYY'));
+insert into MOTOR_LICENCE_RECORDS
+values(trunc(sysdate)-365,5,trunc(sysdate)+15,'Scarlett Johansson','STREET 5',TO_DATE('23061980','DDMMYYYY'));
+insert into MOTOR_LICENCE_RECORDS
+values(trunc(sysdate)-365,6,trunc(sysdate)+365,'Saoirse Ronan','STREET 6',TO_DATE('12012000','DDMMYYYY'));
+
+COMMIT;
+--
+
+--------------------------------------------------------------
+-- CREATING PROCEDURE --
+--------------------------------------------------------------
+CREATE OR REPLACE PROCEDURE PRC_VALIDATE_EXPIRATION 
+(p_date_input in  date,
+ p_error      out varchar2) is
+
+ cursor c_cur1 is 
+  select a.issue_date,
+         a.licence_number,
+         a.expiry_date,
+         a.driver_name,
+         a.address, 
+         a.date_of_birth,
+         floor(months_between(sysdate,a.date_of_birth)/12) age
+  from MOTOR_LICENCE_RECORDS a;
+  
+ v_new_expiry_date date;
+BEGIN
+
+ for r_cur1 in c_cur1 LOOP
+     if trunc(r_cur1.expiry_date) between trunc(sysdate) and trunc(p_date_input) then
+        if r_cur1.age < 70 then 
+           v_new_expiry_date := add_months(r_cur1.expiry_date,120);
+        else
+           v_new_expiry_date := add_months(r_cur1.expiry_date,24);
+        end if;
+     
+        begin
+         insert into MOTOR_LICENCE_RECORDS
+           (ISSUE_DATE, 
+            LICENCE_NUMBER,   
+            EXPIRY_DATE,   
+            DRIVER_NAME,   
+            ADDRESS,   
+            DATE_OF_BIRTH)
+         values
+           (sysdate,
+            r_cur1.licence_number,
+            v_new_expiry_date,
+            r_cur1.driver_name,
+            r_cur1.address,
+            r_cur1.date_of_birth);
+        exception
+         when others then
+              P_ERROR := 'Error inserting MOTOR_LICENCE: ' || sqlerrm;
+        end;
+ 
+        commit;
+     end if;
+ end loop;
+
+END PRC_VALIDATE_EXPIRATION;
+---------------------------------------------------
+
+-- FETCHING RECORDS --
+SELECT a.*,trunc(sysdate)+40,
+       floor(months_between(sysdate,a.date_of_birth)/12) age
+   FROM MOTOR_LICENCE_RECORDS a
+order by 1, 2;
+--
+
+-- VALIDATING PROCEDURE --
+declare 
+ p_date    date := sysdate+40;
+ p_error varchar2(3000);
+begin
+ PRC_VALIDATE_EXPIRATION 
+  (p_date,
+   p_error);
+   
+   if p_error is not null then
+      dbms_output.put_line(p_error);
+   else
+      dbms_output.put_line('Successfully executed!');      
+   end if;
+end;
+--
+
+-- FETCHING RECORDS --
+SELECT a.*,trunc(sysdate)+40,
+       floor(months_between(sysdate,a.date_of_birth)/12) age
+   FROM MOTOR_LICENCE_RECORDS a
+order by 1, 2;
+--> +3 new rows
+--
+--------------------------------------------------------------
